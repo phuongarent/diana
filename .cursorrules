@@ -1,0 +1,99 @@
+
+  You are an expert in TypeScript, Node.js, Next.js App Router, React, Shadcn UI, Radix UI and Tailwind.
+  
+  Code Style and Structure
+  - Write concise, technical TypeScript code with accurate examples.
+  - Use functional and declarative programming patterns; avoid classes.
+  - Prefer iteration and modularization over code duplication.
+  - Use descriptive variable names with auxiliary verbs (e.g., isLoading, hasError).
+  - Structure files: exported component, subcomponents, helpers, static content, types.
+  
+  Naming Conventions
+  - Use lowercase with dashes for directories (e.g., components/auth-wizard).
+  - Favor named exports for components.
+  
+  TypeScript Usage
+  - Use TypeScript for all code; prefer interfaces over types.
+  - Avoid enums; use maps instead.
+  - Use functional components with TypeScript interfaces.
+  
+  Syntax and Formatting
+  - Use the "function" keyword for pure functions.
+  - Avoid unnecessary curly braces in conditionals; use concise syntax for simple statements.
+  - Use declarative JSX.
+  
+  UI and Styling
+  - Use Shadcn UI, Radix, and Tailwind for components and styling.
+  - Implement responsive design with Tailwind CSS; use a mobile-first approach.
+  
+  Performance Optimization
+  - Minimize 'use client', 'useEffect', and 'setState'; favor React Server Components (RSC).
+  - Wrap client components in Suspense with fallback.
+  - Use dynamic loading for non-critical components.
+  - Optimize images: use WebP format, include size data, implement lazy loading.
+  
+  Key Conventions
+  - Use 'nuqs' for URL search parameter state management.
+  - Optimize Web Vitals (LCP, CLS, FID).
+  - Limit 'use client':
+    - Favor server components and Next.js SSR.
+    - Use only for Web API access in small components.
+    - Avoid for data fetching or state management.
+  
+  Follow Next.js docs for Data Fetching, Rendering, and Routing.
+ 
+## Project focus (note)
+
+- Hiện tại dự án tạm thời **loại bỏ authentication** để tập trung phát triển 2 chức năng chính trên Dashboard:
+  - **createKeyAPI**: endpoint/logic để tạo API key mới
+  - **listKeyAPI**: hiển thị danh sách API keys trên Dashboard
+
+- Hướng thực hiện: ưu tiên kiểm tra các file dưới `src/app/api/api-keys/` và `src/app/components/` (Dashboard) để implement và test hai chức năng trên. Các phần liên quan tới `next-auth`/session có thể được tắt bỏ tạm thời.
+ 
+## Quick fix for Supabase / NOAUTH errors
+
+- If you see "supabaseUrl is required" or "invalid input syntax for type uuid: \"noauth\"" in the terminal, do the following:
+
+  1) Create a local `.env.local` with your Supabase credentials and a valid fallback user id (UUID). Example PowerShell command:
+
+     ```powershell
+     @"
+     SUPABASE_URL=https://your-supabase-url
+     SUPABASE_ANON_KEY=your-anon-key
+     NOAUTH_USER_ID=00000000-0000-0000-0000-000000000000
+     "@ | Out-File -Encoding utf8 .env.local
+     ```
+
+  2) Or set them for the current PowerShell session (temporary):
+
+     ```powershell
+     $env:SUPABASE_URL="https://your-supabase-url"
+     $env:SUPABASE_ANON_KEY="your-anon-key"
+     $env:NOAUTH_USER_ID="00000000-0000-0000-0000-000000000000"
+     npm run dev
+     ```
+
+  3) Make sure `NOAUTH_USER_ID` is a real UUID that exists in your Supabase `users` table if the API queries filter by `user_id`. If you don't want a fallback UUID, edit the API code to avoid user-scoped queries when `getSessionUser()` returns null.
+
+  4) Security reminder: never commit real secrets. Use `.env.local` (gitignored) or your host's secret manager.
+ 
+## Fix duplicate primary key (`api_keys.user_id`)
+
+If you see Postgres error `duplicate key value violates unique constraint "api_keys_pkey"` (code `23505`), it means `user_id` is currently the primary key in `api_keys` so a single user cannot have multiple keys.
+
+Recommended migration (run in Supabase SQL editor):
+
+```sql
+-- add an `id` primary key and keep user_id as a regular column
+ALTER TABLE public.api_keys ADD COLUMN IF NOT EXISTS id uuid DEFAULT gen_random_uuid();
+ALTER TABLE public.api_keys DROP CONSTRAINT IF EXISTS api_keys_pkey;
+ALTER TABLE public.api_keys ADD CONSTRAINT api_keys_pkey PRIMARY KEY (id);
+-- optional: add foreign key to users table if you have a users table
+-- ALTER TABLE public.api_keys ADD CONSTRAINT fk_user FOREIGN KEY (user_id) REFERENCES public.users(id);
+
+-- optionally add `limit` column if your app expects it
+ALTER TABLE public.api_keys ADD COLUMN IF NOT EXISTS limit integer NULL;
+```
+
+After migration, retry creating API keys. The server will also return a 409 with guidance if it detects this schema issue.
+  
