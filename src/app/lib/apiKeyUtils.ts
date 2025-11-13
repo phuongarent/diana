@@ -42,7 +42,8 @@ export async function validateApiKey(apiKey: string): Promise<ApiKeyData | null>
 
 export async function incrementApiKeyUsage(apiKeyData: ApiKeyData): Promise<{ success: boolean; message: string }> {
   try {
-    if (apiKeyData.usage >= apiKeyData.limit) {
+    // If `limit` is null treat as unlimited; otherwise enforce limit.
+    if (apiKeyData.limit !== null && apiKeyData.usage >= apiKeyData.limit) {
       return { success: false, message: 'Rate limit exceeded' };
     }
 
